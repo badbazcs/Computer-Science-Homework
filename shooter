@@ -1,0 +1,167 @@
+import pygame
+import sys
+import time
+
+# Initialize Pygame
+pygame.init()
+
+# Game settings
+screen_width = 800
+screen_height = 600
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption("Moving Character Game")
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+ENEMY_COLOR = (255, 255, 255)
+
+# Fonts
+font = pygame.font.SysFont('Arial', 30)
+
+# Character settings
+char_width = 50
+char_height = 50
+char_x = screen_width // 2 - char_width // 2
+char_y = screen_height - char_height - 10
+char_speed = 5
+
+# Bullet settings
+bullet_width = 5
+bullet_height = 10
+bullet_speed = 7
+bullets = []
+last_shot_time = 0  # To manage the reload timer (0.7 seconds)
+
+# Enemy settings
+enemy_radius = 20
+enemy_y = 50
+enemies = [{'x': 100, 'y': enemy_y}, {'x': 300, 'y': enemy_y}, {'x': 500, 'y': enemy_y}, {'x': 700, 'y': enemy_y}]
+
+# Score variable
+score = 0
+
+# Start menu settings
+menu_running = True
+game_running = False
+
+# Function to display text
+def draw_text(text, font, color, x, y):
+    text_surface = font.render(text, True, color)
+    screen.blit(text_surface, (x, y))
+
+# Bullet class to store bullet data
+class Bullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = bullet_width
+        self.height = bullet_height
+        self.color = GREEN
+
+    def move(self):
+        self.y -= bullet_speed
+
+    def draw(self):
+        pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+
+    def off_screen(self):
+        return self.y < 0
+
+    def hit_enemy(self, enemy):
+        # Simple collision detection (if bullet hits enemy circle)
+        return pygame.Rect(self.x, self.y, self.width, self.height).colliderect(enemy)
+
+# Function to draw enemies
+def draw_enemies():
+    for enemy in enemies:
+        pygame.draw.circle(screen, ENEMY_COLOR, (enemy['x'], enemy['y']), enemy_radius)
+
+# Main game loop
+def game_loop():
+    global char_x, char_y, game_running, last_shot_time, score, enemies
+    clock = pygame.time.Clock()
+
+    while game_running:
+        screen.fill(WHITE)
+
+        # Event handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        # Move character
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT] and char_x > 0:
+            char_x -= char_speed
+        if keys[pygame.K_RIGHT] and char_x < screen_width - char_width:
+            char_x += char_speed
+
+        # Check for mouse button press to shoot with reload time
+        mouse_pressed = pygame.mouse.get_pressed()
+        current_time = time.time()
+        if mouse_pressed[0] and (current_time - last_shot_time > 0.7):  # Only shoot if 0.7s has passed
+            bullet = Bullet(char_x + char_width // 2 - bullet_width // 2, char_y)  # Start from character's position
+            bullets.append(bullet)
+            last_shot_time = current_time  # Reset the last shot time
+
+        # Move and draw bullets
+        for bullet in bullets[:]:
+            bullet.move()
+            bullet.draw()
+            if bullet.off_screen():
+                bullets.remove(bullet)
+
+            # Check for collisions with enemies
+            for enemy in enemies[:]:
+                enemy_rect = pygame.Rect(enemy['x'] - enemy_radius, enemy['y'] - enemy_radius, 2 * enemy_radius, 2 * enemy_radius)
+                if bullet.hit_enemy(enemy_rect):
+                    bullets.remove(bullet)  # Remove bullet
+                    enemies.remove(enemy)  # Remove enemy
+                    score += 10  # Increase score by 10
+                    break
+
+        # Draw the character (a red square)
+        pygame.draw.rect(screen, RED, (char_x, char_y, char_width, char_height))
+
+        # Draw enemies
+        draw_enemies()
+
+        # Display the score in the middle of the screen
+        draw_text(f"Score: {score}", font, BLACK, screen_width // 2 - 60, screen_height // 2)
+
+        # Update screen
+        pygame.display.flip()
+        clock.tick(60)
+
+# Start menu loop
+def start_menu():
+    global game_running, menu_running
+    clock = pygame.time.Clock()
+
+    while menu_running:
+        screen.fill(WHITE)
+        draw_text("Press Enter to Start", font, BLACK, screen_width // 3, screen_height // 3)
+        draw_text("Press Q to Quit", font, BLACK, screen_width // 3, screen_height // 2)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    game_running = True
+                    menu_running = False
+                    game_loop()  # Start the game loop
+                if event.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+
+        pygame.display.flip()
+        clock.tick(60)
+
+# Start the game from the start menu
+start_menu()
