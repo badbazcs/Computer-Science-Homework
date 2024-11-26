@@ -33,15 +33,22 @@ bullet_width = 5
 bullet_height = 10
 bullet_speed = 7
 bullets = []
-last_shot_time = 0  # To manage the reload timer (0.7 seconds)
+last_shot_time = 0  # To manage the reload timer (0.4 seconds)
 
 # Enemy settings
 enemy_radius = 20
+enemy_spacing = 100  # Horizontal space between enemies
 enemy_y = 50
-enemies = [{'x': 100, 'y': enemy_y}, {'x': 300, 'y': enemy_y}, {'x': 500, 'y': enemy_y}, {'x': 700, 'y': enemy_y}]
+rows = 3  # Number of rows of enemies
+cols = 8  # Number of columns of enemies
+enemies = []
 
 # Score variable
 score = 0
+
+# Timer settings
+game_time = 60  # Game duration in seconds
+time_left = game_time  # Countdown timer
 
 # Start menu settings
 menu_running = True
@@ -79,10 +86,27 @@ def draw_enemies():
     for enemy in enemies:
         pygame.draw.circle(screen, ENEMY_COLOR, (enemy['x'], enemy['y']), enemy_radius)
 
+# Function to spawn enemies
+def spawn_enemies():
+    global enemies
+    enemies = []  # Clear current enemies
+    for row in range(rows):
+        for col in range(cols):
+            x = col * enemy_spacing + 50  # 50px offset for neat alignment
+            y = row * (enemy_radius * 2) + 50  # 50px offset for neat alignment
+            enemies.append({'x': x, 'y': y})
+
+# Function to move enemies down
+def move_enemies_down():
+    for enemy in enemies:
+        enemy['y'] += 30  # Move enemies down by 30 pixels every 5 seconds
+
 # Main game loop
 def game_loop():
-    global char_x, char_y, game_running, last_shot_time, score, enemies
+    global char_x, char_y, game_running, last_shot_time, score, enemies, time_left
     clock = pygame.time.Clock()
+    start_time = time.time()  # To track the game duration
+    last_move_time = time.time()  # To track when enemies should move down
 
     while game_running:
         screen.fill(WHITE)
@@ -103,7 +127,7 @@ def game_loop():
         # Check for mouse button press to shoot with reload time
         mouse_pressed = pygame.mouse.get_pressed()
         current_time = time.time()
-        if mouse_pressed[0] and (current_time - last_shot_time > 0.7):  # Only shoot if 0.7s has passed
+        if mouse_pressed[0] and (current_time - last_shot_time > 0.4):  # Reduced cooldown to 0.4s
             bullet = Bullet(char_x + char_width // 2 - bullet_width // 2, char_y)  # Start from character's position
             bullets.append(bullet)
             last_shot_time = current_time  # Reset the last shot time
@@ -130,8 +154,26 @@ def game_loop():
         # Draw enemies
         draw_enemies()
 
-        # Display the score in the middle of the screen
+        # Timer: update and draw
+        time_elapsed = time.time() - start_time
+        time_left = max(0, game_time - int(time_elapsed))
+        draw_text(f"Time: {time_left}s", font, BLACK, screen_width - 120, 10)
+
+        # Display the score
         draw_text(f"Score: {score}", font, BLACK, screen_width // 2 - 60, screen_height // 2)
+
+        # Move enemies down every 5 seconds
+        if current_time - last_move_time >= 5:
+            move_enemies_down()
+            last_move_time = current_time
+
+        # If time runs out, end the game
+        if time_left == 0:
+            draw_text("Game Over!", font, BLACK, screen_width // 3, screen_height // 2)
+            pygame.display.flip()
+            time.sleep(2)
+            game_running = False
+            break
 
         # Update screen
         pygame.display.flip()
@@ -153,6 +195,7 @@ def start_menu():
                 sys.exit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
+                    spawn_enemies()  # Initialize enemies at the start of the game
                     game_running = True
                     menu_running = False
                     game_loop()  # Start the game loop
