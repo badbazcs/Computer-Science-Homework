@@ -1,6 +1,7 @@
 import pygame
 import sys
 import time
+import random
 
 # Initialize Pygame
 pygame.init()
@@ -16,7 +17,8 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
-ENEMY_COLOR = (255, 255, 255)
+YELLOW = (255, 255, 0)
+BLOCK_COLOR = (100, 100, 100)  # Gray color for blocking objects
 
 # Fonts
 font = pygame.font.SysFont('Arial', 30)
@@ -43,12 +45,19 @@ rows = 3  # Number of rows of enemies
 cols = 8  # Number of columns of enemies
 enemies = []
 
+# Block settings
+blocks = []  # List of blocking objects
+block_hits = {i: 0 for i in range(3)}  # Track hits for each block
+
 # Score variable
 score = 0
 
 # Timer settings
 game_time = 60  # Game duration in seconds
 time_left = game_time  # Countdown timer
+
+# Enemy bullets
+enemy_bullets = []
 
 # Start menu settings
 menu_running = True
@@ -61,12 +70,12 @@ def draw_text(text, font, color, x, y):
 
 # Bullet class to store bullet data
 class Bullet:
-    def __init__(self, x, y):
+    def __init__(self, x, y, color=GREEN):
         self.x = x
         self.y = y
         self.width = bullet_width
         self.height = bullet_height
-        self.color = GREEN
+        self.color = color
 
     def move(self):
         self.y -= bullet_speed
@@ -75,16 +84,18 @@ class Bullet:
         pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
 
     def off_screen(self):
-        return self.y < 0
+        return self.y < 0 or self.y > screen_height
 
     def hit_enemy(self, enemy):
-        # Simple collision detection (if bullet hits enemy circle)
         return pygame.Rect(self.x, self.y, self.width, self.height).colliderect(enemy)
+
+    def hit_block(self, block):
+        return pygame.Rect(self.x, self.y, self.width, self.height).colliderect(block)
 
 # Function to draw enemies
 def draw_enemies():
     for enemy in enemies:
-        pygame.draw.circle(screen, ENEMY_COLOR, (enemy['x'], enemy['y']), enemy_radius)
+        pygame.draw.circle(screen, YELLOW, (enemy['x'], enemy['y']), enemy_radius)
 
 # Function to spawn enemies
 def spawn_enemies():
@@ -96,14 +107,77 @@ def spawn_enemies():
             y = row * (enemy_radius * 2) + 50  # 50px offset for neat alignment
             enemies.append({'x': x, 'y': y})
 
-# Function to move enemies down
+# Function to move enemies down and add new row at top
 def move_enemies_down():
+    global enemies
+    # Move all enemies down
     for enemy in enemies:
-        enemy['y'] += 30  # Move enemies down by 30 pixels every 5 seconds
+        enemy['y'] += 30  # Move enemies down by 30 pixels
+
+    # Add a new row of enemies at the top
+    if len(enemies) > 0 and enemies[0]['y'] > enemy_y:
+        spawn_enemies()  # Re-spawn enemies at the top
+        enemies = enemies[len(enemies)//2:]  # Remove half of the current enemies to simulate the movement
+
+# Block class for destructible obstacles
+class Block:
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.hit_count = 0
+
+    def draw(self):
+        pygame.draw.rect(screen, BLOCK_COLOR, (self.x, self.y, self.width, self.height))
+
+    def shrink(self):
+        self.width *= 0.75
+        self.height *= 0.75
+        self.hit_count += 1
+
+    def is_destroyed(self):
+        return self.hit_count >= 5
+
+# Function to spawn blocks
+def spawn_blocks():
+    blocks.append(Block(200, 400, 100, 30))
+    blocks.append(Block(350, 400, 100, 30))
+    blocks.append(Block(500, 400, 100, 30))
+
+# Move enemy bullets and check for collisions with player or blocks
+def move_enemy_bullets():
+    global score
+    for bullet in enemy_bullets[:]:
+        bullet.move()
+        bullet.draw()
+        if bullet.off_screen():
+            enemy_bullets.remove(bullet)
+
+        # Check for collision with player
+        if pygame.Rect(char_x, char_y, char_width, char_height).colliderect(pygame.Rect(bullet.x, bullet.y, bullet.width, bullet.height)):
+            score -= 10  # Deduct score if player gets hit
+            enemy_bullets.remove(bullet)
+
+        # Check for collision with blocks
+        for block in blocks:
+            if pygame.Rect(block.x, block.y, block.width, block.height).colliderect(pygame.Rect(bullet.x, bullet.y, bullet.width, bullet.height)):
+                block.shrink()  # Shrink the block
+                enemy_bullets.remove(bullet)  # Remove bullet
+                if block.is_destroyed():
+                    blocks.remove(block)  # Destroy block after 5 hits
+                break
+
+# Function to make enemies shoot at player
+def enemy_shoot():
+    for enemy in enemies:
+        if random.random() < 0.01:  # 1% chance for each enemy to shoot
+            bullet = Bullet(enemy['x'], enemy['y'], color=RED)
+            enemy_bullets.append(bullet)
 
 # Main game loop
 def game_loop():
-    global char_x, char_y, game_running, last_shot_time, score, enemies, time_left
+    global char_x, char_y, game_running, last_shot_time, score, enemies, time_left, blocks
     clock = pygame.time.Clock()
     start_time = time.time()  # To track the game duration
     last_move_time = time.time()  # To track when enemies should move down
@@ -148,11 +222,26 @@ def game_loop():
                     score += 10  # Increase score by 10
                     break
 
+        # Move enemies down and add new row
+        if current_time - last_move_time >= 5:
+            move_enemies_down()
+            last_move_time = current_time
+
+        # Make enemies shoot at the player
+        enemy_shoot()
+
+        # Move and draw enemy bullets
+        move_enemy_bullets()
+
         # Draw the character (a red square)
         pygame.draw.rect(screen, RED, (char_x, char_y, char_width, char_height))
 
         # Draw enemies
         draw_enemies()
+
+        # Draw blocks
+        for block in blocks:
+            block.draw()
 
         # Timer: update and draw
         time_elapsed = time.time() - start_time
@@ -161,11 +250,6 @@ def game_loop():
 
         # Display the score
         draw_text(f"Score: {score}", font, BLACK, screen_width // 2 - 60, screen_height // 2)
-
-        # Move enemies down every 5 seconds
-        if current_time - last_move_time >= 5:
-            move_enemies_down()
-            last_move_time = current_time
 
         # If time runs out, end the game
         if time_left == 0:
@@ -196,6 +280,7 @@ def start_menu():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
                     spawn_enemies()  # Initialize enemies at the start of the game
+                    spawn_blocks()  # Spawn blocks
                     game_running = True
                     menu_running = False
                     game_loop()  # Start the game loop
