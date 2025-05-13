@@ -30,13 +30,20 @@ bomb_img = pygame.image.load("bomb_image.png")
 bomb_img = pygame.transform.scale(bomb_img, (150, 150))
 bomb_img_flip = pygame.transform.flip(bomb_img, True, False)
 
+# Helper to scale mouse coordinates to internal resolution
+def get_scaled_mouse_pos():
+    screen_width, screen_height = screen.get_size()
+    scale_x = SCREEN_WIDTH / screen_width
+    scale_y = SCREEN_HEIGHT / screen_height
+    mx, my = pygame.mouse.get_pos()
+    return int(mx * scale_x), int(my * scale_y)
+
 # Block class with animated rigid movement
 class Block:
     def __init__(self, x, y, size=50, color=BLUE):
         self.size = size
         self.color = color
         self.rect = pygame.Rect(x, y, size, size)
-
         self.is_moving = False
         self.start_pos = self.rect.topleft
         self.target_pos = self.rect.topleft
@@ -83,8 +90,10 @@ class Button:
         surface.blit(text_surf, text_surf.get_rect(center=self.rect.center))
 
     def handle_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(event.pos):
-            self.action()
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            scaled_pos = get_scaled_mouse_pos()
+            if self.rect.collidepoint(scaled_pos):
+                self.action()
 
 # Subroutines
 def quit_game():
@@ -166,7 +175,6 @@ def game_screen(colour):
             game_surface.fill((30, 30, 30))
             pause_text = FONT.render("Paused - Press ESC to Resume", True, WHITE)
             game_surface.blit(pause_text, pause_text.get_rect(center=(SCREEN_WIDTH // 2, 150)))
-
             for btn in pause_buttons:
                 btn.draw(game_surface)
         else:
@@ -203,3 +211,4 @@ def run_screen(title_text, buttons, include_bombs=False):
 
 # Start the game
 main_menu()
+
