@@ -33,9 +33,18 @@ class Block:
     def __init__(self, x, y, size=50, color=BLUE):
         self.rect = pygame.Rect(x, y, size, size)
         self.color = color
+        self.last_move_time = 0
+        self.move_delay = 450  # milliseconds
 
     def draw(self, surface):
         pygame.draw.rect(surface, self.color, self.rect)
+
+    def move(self, dx, dy):
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_move_time >= self.move_delay:
+            self.rect.x += dx
+            self.rect.y += dy
+            self.last_move_time = current_time
 
 # Button class
 class Button:
@@ -114,6 +123,17 @@ def game_screen(colour):
             elif paused:
                 for btn in pause_buttons:
                     btn.handle_event(event)
+
+        if not paused:
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT]:
+                block.move(-50, 0)
+            elif keys[pygame.K_RIGHT]:
+                block.move(50, 0)
+            elif keys[pygame.K_UP]:
+                block.move(0, -50)
+            elif keys[pygame.K_DOWN]:
+                block.move(0, 50)
 
         if paused:
             screen.fill((30, 30, 30))
