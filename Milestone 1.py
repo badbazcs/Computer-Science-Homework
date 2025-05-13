@@ -8,7 +8,6 @@ SCREEN_WIDTH, SCREEN_HEIGHT = 960, 540
 FPS = 60
 FONT = pygame.font.SysFont(None, 48)
 
-# Colors
 WHITE = (255, 255, 255)
 GREY = (100, 100, 100)
 GREEN = (50, 150, 0)
@@ -28,23 +27,44 @@ bomb_img = pygame.image.load("bomb_image.png")
 bomb_img = pygame.transform.scale(bomb_img, (150, 150))
 bomb_img_flip = pygame.transform.flip(bomb_img, True, False)
 
-# Block class
+# Block class with animated rigid movement
 class Block:
     def __init__(self, x, y, size=50, color=BLUE):
-        self.rect = pygame.Rect(x, y, size, size)
+        self.size = size
         self.color = color
-        self.last_move_time = 0
-        self.move_delay = 450  # milliseconds
+        self.rect = pygame.Rect(x, y, size, size)
+
+        self.is_moving = False
+        self.start_pos = self.rect.topleft
+        self.target_pos = self.rect.topleft
+        self.move_duration = 450  # milliseconds
+        self.move_start_time = 0
 
     def draw(self, surface):
         pygame.draw.rect(surface, self.color, self.rect)
 
-    def move(self, dx, dy):
-        current_time = pygame.time.get_ticks()
-        if current_time - self.last_move_time >= self.move_delay:
-            self.rect.x += dx
-            self.rect.y += dy
-            self.last_move_time = current_time
+    def update(self):
+        if self.is_moving:
+            current_time = pygame.time.get_ticks()
+            elapsed = current_time - self.move_start_time
+            progress = min(elapsed / self.move_duration, 1)
+
+            new_x = self.start_pos[0] + (self.target_pos[0] - self.start_pos[0]) * progress
+            new_y = self.start_pos[1] + (self.target_pos[1] - self.start_pos[1]) * progress
+            self.rect.topleft = (new_x, new_y)
+
+            if progress >= 1:
+                self.is_moving = False
+                self.rect.topleft = self.target_pos
+
+    def try_move(self, dx, dy):
+        if not self.is_moving:
+            new_x = self.rect.x + dx * self.size
+            new_y = self.rect.y + dy * self.size
+            self.start_pos = self.rect.topleft
+            self.target_pos = (new_x, new_y)
+            self.is_moving = True
+            self.move_start_time = pygame.time.get_ticks()
 
 # Button class
 class Button:
@@ -100,10 +120,9 @@ def settings_menu():
     run_screen("Settings", buttons)
 
 def game_screen(colour):
-    block = Block(10, 10)  # Spawn block in top-left
+    block = Block(10, 10)
     paused = False
 
-    # Pause menu button
     def return_to_menu():
         nonlocal running
         running = False
@@ -126,14 +145,17 @@ def game_screen(colour):
 
         if not paused:
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_LEFT]:
-                block.move(-50, 0)
-            elif keys[pygame.K_RIGHT]:
-                block.move(50, 0)
-            elif keys[pygame.K_UP]:
-                block.move(0, -50)
-            elif keys[pygame.K_DOWN]:
-                block.move(0, 50)
+            if not block.is_moving:
+                if keys[pygame.K_LEFT]:
+                    block.try_move(-1, 0)
+                elif keys[pygame.K_RIGHT]:
+                    block.try_move(1, 0)
+                elif keys[pygame.K_UP]:
+                    block.try_move(0, -1)
+                elif keys[pygame.K_DOWN]:
+                    block.try_move(0, 1)
+
+        block.update()
 
         if paused:
             screen.fill((30, 30, 30))
